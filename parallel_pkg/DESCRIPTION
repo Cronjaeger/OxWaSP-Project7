@@ -1,0 +1,8 @@
+Package: parallel_pkg
+Title: Parrallel SMC & MCMC
+Version: 0.1
+Authors@R: "Mathias C. Cronjager, Simon Lyddon, Lawrence Middleton <kitkat2.0@gmail.com>"
+Description: What the package does (one paragraph)
+Depends: R (>= 3.1.2)
+License: MIT License
+LazyData: true
