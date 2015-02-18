@@ -4,8 +4,10 @@ Version: 0.1
 Authors@R: c(person("Mathias", "Cronjager", role = c("aut", "cre"),
   	     email = "kitkat2.0@gmail.com"),
 	      person("Simon", "Lyddon", role = "aut"),
-	      person("lawrence", "Middleton", role = "aut"))
+	      person("Lawrence", "Middleton", role = "aut"))
 Description: Project on High performance computing. Based on implementing/expanding on results from (Lee et al. 2010).
 Depends: R (>= 3.1.2)
+Author: Mathias C. Cronjager, Simon Lyddon and Lawrence Middleton
+Maintainer: Mathias C. Cronjager <kitkat2.0@gmail.com>
 License: MIT License
 LazyData: true
