@@ -27,8 +27,6 @@ phi_D <- rep(0.9,3)
 #' @param phi x-rescaling before updating 
 #' 
 #' @return Returns a list of two matrices "X" and "Y". The column-index of each matrix corresponds to time.
-#' 
-#' @export simulateForwards
 simulateForwards <- function(steps = steps_D,
                              x0 = x0_D,
                              B = B_D,

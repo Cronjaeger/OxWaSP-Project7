@@ -10,8 +10,8 @@ squareVector <- function(X){
   return(returnVector)
 }
 
-## we test if things work
-testSq <- function(){
-  vec = squareVector(1:10)
-  print(vec)
+# Test if square.c has been compiled and is callable.
+testSq <- function(n=10){
+  vec = squareVector(1:n)
+  print(tail(vec))
 }
