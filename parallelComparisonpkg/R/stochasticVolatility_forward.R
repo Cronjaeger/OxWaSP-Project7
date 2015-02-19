@@ -36,7 +36,8 @@ simulateForwards <- function(steps = steps_D,
                              psi = psi_D,
                              phi = phi_D){
  
-  require(MASS) # mvrnorm is in this package.
+#  require(MASS) # mvrnorm is in this package.
+  require(mvtnorm) #rmvnorm is in this package
 
   M <- dim(B)[1]
   K <- dim(B)[2]
@@ -53,13 +54,15 @@ simulateForwards <- function(steps = steps_D,
   
   #loop for computing values of x[2] , ... , x[steps+1]
   for(t in 2:(steps + 1)){
-    X[,t] <- mvrnorm(mu = Phi %*% X[,(t-1)], Sigma = U)
+#     X[,t] <- mvrnorm(mu = Phi %*% X[,(t-1)], Sigma = U)
+    X[,t] <- rmvnorm(n = 1, mean = Phi %*% X[,(t-1)],sigma = U, method = "chol")
   }
   
   #loop for computing values of y[1] , ... , y[steps+1]
   for(t in 1:(steps +1 )){
     H <- diag(exp(X[,t]))
-    Y[,t] <- mvrnorm(mu = zero_M, Sigma = B %*% H %*% t(B) + Psi)
+#     Y[,t] <- mvrnorm(mu = zero_M, Sigma = B %*% H %*% t(B) + Psi)
+    Y[,t] <- rmvnorm(n=1, mean = zero_M, sigma = B %*% H %*% t(B) + Psi, method = "chol")
   }
   
   return(list("X" =X,"Y" = Y))
