@@ -12,8 +12,12 @@ phi_D <- rep(0.9,3)
 #' 
 #' @author Mathias C. Cronj\"ager
 #' @description Simulates A stochastic volatilityu model as outlined in section 4.2 of (Lee et al. 2010).
+#' 
 #' x[t] ~ Normal(diag(phi)*x[t-1], U)
-#' y[t] ~ Normal(0, B * diag(exp(x[t])) * B' + diag(psi))
+#' 
+#' y[t] ~ Normal(0, B * diag(exp(x[t])) * B' + diag(psi)).
+#' 
+#' All arguments default to the arguments used in (Lee et al. 2010).
 #' 
 #' @param steps Number of timesteps to be taken
 #' @param x0 initial conditions
