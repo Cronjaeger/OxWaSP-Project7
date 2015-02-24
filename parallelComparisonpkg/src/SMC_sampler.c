@@ -82,8 +82,10 @@ void smc_sampler(
 
   /* Iterate from n=1 to n=M */
   int n = 1;
+  unsigned int resampleCounter = 0;
   while(1){
-    // for diagnosing running time
+
+    // for diagnosing running time and output
     if((n-1)%10 == 0){
       time(&t1);
       printf("Running steps %i...%i; \t",n,n+9);
@@ -111,7 +113,8 @@ void smc_sampler(
 
     /* Resample and reset weights, if nessecary */
     if(!(ESS_is_largeEnough(weights,n_particles))){
-
+      ++resampleCounter;
+      printf("resampling in step n = %i\n",n);
       //Preprocessing for sampling from a discrete distribution
       wSampler = gsl_ran_discrete_preproc (n_particles,weights);
 
@@ -119,11 +122,17 @@ void smc_sampler(
       resample(particles,weights,n_particles,w0,r,wSampler);
     }
 
-
     /* Update particle weights */
+    double sumW = 0;
     for(i = 0 ; i<n_particles ; ++i){
       weights[i] *= pi_updateStep(y_obs, N_y_obs, particles[i] ,n);
+      sumW += weights[i];
     }
+    double Z = (double) 1 / sumW;
+    for(i = 0 ; i<n_particles ; ++i){
+      weights[i] *= Z;
+    }
+
 
 
     /* break out when n == M */
@@ -138,6 +147,7 @@ void smc_sampler(
     /*increment counter*/
     ++n;
   }
+  printf("total number of resampling-steps = %i\n",resampleCounter);
 //  printf("DONE!");
   // free(q_weights);
   gsl_rng_free(r);
