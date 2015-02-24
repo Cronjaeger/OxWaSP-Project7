@@ -188,7 +188,16 @@ SMC_sampler <- function(y,N,M=200,c=0.5,mh_steps = 10, mh_sigma =1){
   return(list(X = X, W = W))
 }
 
-# generatePlot <- function(N){
-#   y <- sampleMM(100)
-#   smcData <- SMC_sampler(y,N)
-# }
+generatePlot <- function(N,N_y = 100){
+  y <- sampleMM(N_y)
+  smcData <- SMC_sampler(y,N)
+  Ncolours <- 100
+  blue <- 4/6
+  yellow <- 1/6
+  green <- 2/6
+  red <- 1
+  colVec <- rainbow(Ncolours,start = blue,end = green)[cut(smcData$W,breaks = Ncolours,labels=FALSE)]
+  par(cex = 0.75 ,fg = "lightgrey", bg="black" ,col = "lightgrey", col.axis = "lightgrey", col.lab = "lightgrey",col.main = "lightgrey",col.sub = "lightgrey")
+  plot(smcData$X[1,],smcData$X[2,],col = colVec, pch=".",ps=50)
+  return(list(y,smcData,colVec))
+}
