@@ -7,6 +7,7 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
+#define VERBOSE 0 //when set to 1, running smc_sampler(...) will generate A LOT of output.
 #define HLINE printf("\n--------------------------------------------------------------------------------\n\n")
 
 //#include "square.c"
@@ -19,9 +20,11 @@ const int N_MIXTURE_COMPONENTS = 4; // should be no larger than an unsigned char
 const int M = 200;
 const int MH_STEPS = 10;
 
+static double* xNew;
 
 /* begin function-signatures */
 int test(void);
+void allocateParticle_swap(void);
 double dnorm(const double x,const double mu);
 double log_likelihood(const double * y, const int N_y, const double* mu);
 _Bool ESS_is_largeEnough(const double * W,const int N_W);
@@ -33,6 +36,7 @@ void resample(double ** particles, double * weights,const int n_particles, const
 void propagate_particle(double * x,const int n, const double* y_obs,const int N_y_obs,gsl_rng * r);
 
 int main(){
+  allocateParticle_swap();
   return test();
 }
 
@@ -91,21 +95,25 @@ void smc_sampler(
       printf("Running steps %i...%i; \t",n,n+9);
       printf("elapsed time so far = %.0f sec\n",difftime(t1,t0));
 
-      printf("Printing the first 10 particles to check validity of output:\n");
-      size_t j;
-      double sumW = 0;
-      for(i=0;i<10;++i){
-        printf("  x[%i]_(%i) = ",(int) i,n);
-        for(j=0; j<N_MIXTURE_COMPONENTS ; ++j){
-          if(particles[i][j] >= 0) printf(" ");
-          if(fabs(particles[i][j]) < 10) printf(" ");
-          printf("%.3f\t",particles[i][j]);
+      if(VERBOSE){
+        printf("Printing the first 10 particles to check validity of output:\n");
+        size_t j;
+        for(i=0;i<10;++i){
+          printf("  x[%i]_(%i) = ",(int) i,n);
+          for(j=0; j<N_MIXTURE_COMPONENTS ; ++j){
+            if(particles[i][j] >= 0) printf(" ");
+            if(fabs(particles[i][j]) < 10) printf(" ");
+            printf("%.3f\t",particles[i][j]);
+          }
+          printf(" \tW[%i](%i) = %f",(int) i , n, weights[i]);
+          printf("\n");
         }
-        printf(" \tW[%i](%i) = %f",(int) i , n, weights[i]);
-        printf("\n");
-        sumW += weights[i];
       }
 
+      double sumW = 0;
+      for(i = 0 ; i < n_particles ; ++i){
+        sumW += weights[i];
+      }
       printf("sum of weights = %f",sumW);
       HLINE;
 
@@ -114,7 +122,9 @@ void smc_sampler(
     /* Resample and reset weights, if nessecary */
     if(!(ESS_is_largeEnough(weights,n_particles))){
       ++resampleCounter;
+      HLINE;
       printf("resampling in step n = %i\n",n);
+      HLINE;
       //Preprocessing for sampling from a discrete distribution
       wSampler = gsl_ran_discrete_preproc (n_particles,weights);
 
@@ -162,6 +172,12 @@ void smc_sampler(
 /**********************
 * Auxiliary Functions *
 **********************/
+
+void allocateParticle_swap(void){
+  //modify in case of parralelization
+  xNew = (double*) malloc(sizeof(double)*N_MIXTURE_COMPONENTS);
+}
+
 double dnorm(const double x, const double mu){
   return  gsl_sf_erf_Z((x - mu)/SIGMA)/SIGMA;
 }
@@ -177,8 +193,8 @@ double log_likelihood(const double* y, const int N_y,const double* mu){
   for(i=0; i<N_MIXTURE_COMPONENTS; ++i){
     //INFINITY is a macro defined in math.h
     if( mu[i] > 10.0 || mu[i] < -10.0 ){
+      if(VERBOSE) printf("WOAH!\n");
       return -INFINITY;
-      printf("WOAH!\n");
     }
   }
   /* Compute the log-likelihood iteratively */
@@ -188,15 +204,11 @@ double log_likelihood(const double* y, const int N_y,const double* mu){
     sum = 0;
     for(j = 0 ; j < N_MIXTURE_COMPONENTS ; ++j){
       sum += MIXTURE_WEIGHTS[j] * dnorm(y[i], mu[j]);
-//      printf("%5sum=%.15f\n",(double) sum);
     }
     Sum += log(sum);
-//    printf("Sum=%.15f\nsum=%.15f\n",(double) Sum, (double) sum);
   }
   return Sum;
 }
-
-
 
 /* Generates a ranodm particle ie. 4 ind. samples uniformly from -10 to 10 */
 /* Results are stored in x */
@@ -250,7 +262,8 @@ double pi_updateStep(const double* y,const int N_y, const double* x,const int n)
 
 void propagate_particle(double * x,const int n, const double* y_obs,const int N_y_obs,gsl_rng * r){
   size_t i = 0; size_t j;
-  double xNew[N_MIXTURE_COMPONENTS]; //requires -std=c99 or later. otherwise uncomment the code below.
+  //  double xNew[N_MIXTURE_COMPONENTS]; //requires -std=c99 or later. otherwise uncomment the code below.
+
   // double* xNew;
   // xNew = (double *)malloc(sizeof(double) * N_MIXTURE_COMPONENTS);
 
@@ -261,23 +274,50 @@ void propagate_particle(double * x,const int n, const double* y_obs,const int N_
       xNew[j] = x[j] + gsl_ran_gaussian(r,SIGMA);
     }
 
-    double alpha
-    = fmin(
-        1,
-        exp(
-          (n/M)*(n/M)
-          *
-            (log_likelihood(y_obs,N_y_obs,xNew)
-             - log_likelihood(y_obs,N_y_obs,x))
-          )
-        );
 
-    if( ((double) rand() / (double) RAND_MAX) < alpha){
+    // REMOVE WHEN COMPILING FOR SPEED!
+    if(VERBOSE){
+      // printf("Acceptance! alpha = %0.3f\n",alpha);
+      printf("  x\t= ");
+      for(j=0; j<N_MIXTURE_COMPONENTS ; ++j){
+        if(x[j] >= 0) printf(" ");
+        if(fabs(x[j]) < 10) printf(" ");
+        printf("%.3f\t",x[j]);
+      }
+      printf("\n  x_new\t=");
+      for(j=0; j<N_MIXTURE_COMPONENTS ; ++j){
+        if(xNew[j] >= 0) printf(" ");
+        if(fabs(xNew[j]) < 10) printf(" ");
+        printf("%.3f\t",xNew[j]);
+      }
+      printf("\n");
+    }
+
+
+    // double logL_new = log_likelihood(y_obs, N_y_obs, xNew);
+    // double logL_old = log_likelihood(y_obs, N_y_obs, x);
+    double logL_Diff = log_likelihood(y_obs, N_y_obs, xNew) - log_likelihood(y_obs, N_y_obs, x);
+    double alpha = 1;
+    _Bool autoAccept = 1;
+    // Iff true, the sign in the expression for alpha below will be <1.
+    if(logL_Diff < 0){
+      double exponent = (double) n / (double) M;
+      exponent *= exponent; // square the exponent
+      alpha = exp(exponent * logL_Diff );
+      autoAccept = 0;
+      if (VERBOSE) printf("alpha = %.4f",alpha);
+    }
+
+    if( autoAccept || ((double) rand() / (double) RAND_MAX) < alpha){
+      if( !autoAccept && VERBOSE ) printf("\t new point accepted anyway\n");
       for(j = 0 ; j < N_MIXTURE_COMPONENTS ; ++j){
         x[j] = xNew[j];
       }
+    } else {
+      if(VERBOSE) printf("\n");
     }
   }
+  if(VERBOSE) printf("\n");
 }
 
 /* A generic function to test during development
@@ -289,13 +329,16 @@ int test(void){
   y = dnorm(x,mu,sigma);
   printf("Hello World!\nNormal(1;0,5) = %.10f\n",y);
 */
+
 /*
   double y[2] = {0,2};
   double mu[4] = {-3,0,3,6};
   double x = log_likelihood(y,2,mu);
   printf("Hello World!\nx = %.10f\n",x);
 */
-/*  double mu[4] = {-3,0,3,6};
+
+/*
+  double mu[4] = {-3,0,3,6};
   if( mu[2] < 10 ) printf("Hello World!\n");
 */
 
@@ -330,8 +373,8 @@ int test(void){
     printf( ")\n");
   }
 */
-
-  int N = 10;
+/*
+  int N = 1000;
 
   double* W;
   W = (double*) malloc(sizeof(double)*N);
@@ -411,6 +454,27 @@ int test(void){
     free(X[i]);
   }
   free(X);
+*/
 
+/*
+  int N_y_obs = 100;
+
+  double y_obs[100] = {6.42614409154078,0.260646235868524,6.20077626783781,-3.54124388162526,3.16810352365003,-3.02631343546788,6.22743478871312,6.8131742684717,6.24776924281844,3.65204896173014,6.01102502511306,-2.78204404408537,6.54496067301763,2.86661732139087,6.41368106980899,-2.54549938986914,6.08430821908108,2.65819528014716,-4.10369954335742,-3.70836228135375,3.55973960494948,-3.99408019214758,-3.06751044524848,-0.560058224387682,0.625592793169344,2.58052593365431,0.689049384542289,0.494930560119956,0.390397430673082,2.87213201595585,6.08140477180053,-3.63073724259346,1.76368358083185,0.0978387885170348,6.49576360025151,6.65592881975105,-2.31116539097971,6.69822824187681,0.0197128170022586,-3.6584094557839,6.37219590110012,5.98608504754753,5.76477302651333,-2.49473884182791,3.68861876383596,6.71753596416937,-2.86065603329243,2.36234293889529,-2.13229209410826,-3.1821797074668,3.67640450999392,2.35200323180728,-2.90422204445312,3.85237110998024,5.73406945312462,3.61994874049274,-4.0561902744938,5.66696946993138,5.96245114627653,6.59816990256299,0.231879318383607,2.34472949459441,2.72937582033292,-0.444334698629388,2.22482121394123,3.15359838488669,5.79310254628412,2.95627482456672,0.0754282164405023,-3.27128946837834,-2.77302236660845,7.25710145940199,6.2324724323204,5.9296066592542,5.60999425487975,-0.286465744070193,0.587073138580418,-2.67791031284446,6.98129381109518,3.36137498170339,-3.16490919686681,-3.62156309636938,5.41982668735859,-3.07991914749654,-2.89255426727392,5.61010574600101,-3.10612256078391,3.48991878214866,2.58896632171936,0.703862729104843,4.72001741709978,-0.244802119787893,6.45395925612269,0.253461730596016,2.69213945052578,-2.90338536462303,3.28208239426602,-2.57167632631676,0.920364746339414,0.993277872559861};
+
+  int N_X = 5;
+  double X[5][4] = {
+    {0,3,-3,6},
+    {-3,0,3,6},
+    {0,0,0,0},
+    {9,9,9,9},
+    {0,6,3,15}
+  };
+
+  size_t i;
+  for(i = 0 ; i<N_X ; ++i){
+    double LL = log_likelihood(y_obs,N_y_obs,X[i]);
+    printf("log_L(X[%i]) = %f\n",(int) i,LL);
+  }
+*/
   return 0;
 }
