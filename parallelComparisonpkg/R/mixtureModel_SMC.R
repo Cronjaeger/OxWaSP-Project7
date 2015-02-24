@@ -1,5 +1,5 @@
 # Use an SMC algorithm as outlined in [1] and [2] to infer the modes of a mixture of normals.
-# 
+#
 # Bibliogrphy:
 # [1] M. A. Suchard, Q. Wang, C. Chan, J. Frelinger, A. Cron, and M. West,
 # “Understanding GPU Programming for Statistical Computation: Studies in
@@ -11,13 +11,13 @@
 # pp. 411–436, Jun. 2006.
 
 #' A function for sampling from a mixture of normals.
-#' 
+#'
 #' @param n Number of samples
 #' @param Mu a vector of means
 #' @param Sigma a vector of standard deviations
 #' @param Weightts a vector of weights (should sum to 1)
 #' @return A vector of length \code{n} containing n samples.
-#' 
+#'
 #' @author Mathias C. Cronjager
 sampleMM <- function(n = 1,
                      Mu = c(-3,0,3,6),
@@ -26,7 +26,7 @@ sampleMM <- function(n = 1,
 
   # Compute which distribution is sampled from in each of the n instances
   indices <- sample(1:length(Weights),n,replace = TRUE,prob = Weights)
-  
+
   #Sample from the distributions and return the apropriate value.
   return( (rnorm(n) * Sigma[indices]) + Mu[indices] )
 }
@@ -34,7 +34,7 @@ sampleMM <- function(n = 1,
 #referenceData <- sampleMM(100)
 
 # MCMCSteps <- function(theta, steps){
-#   
+#
 # }
 
 #' computes the likelihood-function p(y|Mu,Sigma,Weights) (up to normalization)
@@ -53,18 +53,24 @@ likelihood <- function(y, Mu, Sigma = 0.55, Weights = 2^-2, log = FALSE){
     if(log){
       return(-Inf)
     } else{
-      return(0.0) 
+      return(0.0)
     }
   }
   #an auxiliary function for computing p(y[i] | Mu, Sigma, Weights)
-  marginal_likelihood <- function(y2){
-      sum(dnorm(x = y2, mean = Mu, sd = Sigma) * Weights)
+  if(log){
+    marginal_likelihood <- function(y2){
+      log(sum(dnorm(x = y2, mean = Mu, sd = Sigma) * Weights))
+    }
+  } else {
+    marginal_likelihood <- function(y2){
+        sum(dnorm(x = y2, mean = Mu, sd = Sigma) * Weights)
+    }
   }
-  
+
   if(log){ #We return the log-likelihood.
-    return(sum(log(marginal_likelihood(y))))
+    return(sum(sapply(y,FUN = marginal_likelihood)))
   } else { # We return the likelihood.
-    return(prod(marginal_likelihood(y)))
+    return(prod(sapply(y,FUN = marginal_likelihood)))
   }
 }
 
@@ -96,20 +102,20 @@ propagate_particle <- function(x, y, n, M = 200, steps = 10, sigma_MH = 1){
 
   #Metropolis-Hastings Steps
   for(i in 1:steps){
-    
+
     #sample proposal
     xNew <- rnorm(n = length(x), mean = x, sd = sigma_MH)
-    
+
     #compute acceptance-ratio
     alpha <- min(1,exp( (n/M)^2
                         * ( likelihood(y,Mu = xNew,log = TRUE)
                             - likelihood(y,Mu = x,log = TRUE))))
-    
+
     #Choose wether to accept
     if(runif(1) < alpha){
       x <- xNew
     }
-    
+
   }
   return(x)
 }
@@ -133,15 +139,17 @@ propagate_particle <- function(x, y, n, M = 200, steps = 10, sigma_MH = 1){
 #' @param mh_steps how many MH steps are made when propagating particles forwards
 #' @param mh_sigma the standard deviation of the proposal distribution to be used
 #' in each MH step when propagating.
-#'   
+#'
 #' @return an 4 x N matrix storing the samples columnwise
-#' 
-#' @references 
+#'
+#' @references
 #' [1] P. Del Moral, A. Doucet, and A. Jasra, “Sequential Monte Carlo samplers,”
 #'  J. R. Stat. Soc. Ser. B (Statistical Methodol., vol. 68, no. 3,
 #'  pp. 411–436, Jun. 2006.
 SMC_sampler <- function(y,N,M=200,c=0.5,mh_steps = 10, mh_sigma =1){
 
+#   y <- as.array(y)
+  
   #Initialize
   X <- matrix(data = runif(n = 4*N,min = -10,max = 10) )
 #               nrow = 4,
@@ -149,9 +157,10 @@ SMC_sampler <- function(y,N,M=200,c=0.5,mh_steps = 10, mh_sigma =1){
   dim(X) <- c(4,N)
 
   W <- rep(1/N,N)
-  
+
   #Iterate from 1 to M
-  for(n in 1:M){
+  n <- 1
+  while(TRUE){
 
     # Resample if nessecary
     if(!ESS_is_largeEnough(W,c)){
@@ -159,13 +168,27 @@ SMC_sampler <- function(y,N,M=200,c=0.5,mh_steps = 10, mh_sigma =1){
       X <- X[,sample(N,size = N,prob = W,replace = TRUE)]
       W <- rep(1/N,N)
     }
-    
-    #Update particle Weights (can be done before propagation due to nature of the Algorithm)
+
+    #Update particle Weights (can be done before propagation in this case)
     W <- W * apply(X,2,function(x) pi_updateStep(y,x,n,M))
     W <- W / sum(W)
+
+    # Break out of loop when the M-th set of weights has been computed. We do
+    # not propagate the last particles forward
+    if(n==M) break
     
+#    if(n==1) print(head(X))
     # Propagate Particles
     X <- apply(X,2,function(x) propagate_particle(x,y,n,M,steps = mh_steps,sigma_MH = mh_sigma))
+#    if(n==1) print(head(X))
+    
+    #increment counter
+    n <- n+1
   }
-  return(X)
+  return(list(X = X, W = W))
 }
+
+# generatePlot <- function(N){
+#   y <- sampleMM(100)
+#   smcData <- SMC_sampler(y,N)
+# }
