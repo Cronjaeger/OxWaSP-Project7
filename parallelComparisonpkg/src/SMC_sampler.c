@@ -7,6 +7,7 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
+/* Begin constants */
 #define VERBOSE 0 //when set to 1, running smc_sampler(...) will generate A LOT of output.
 #define M 200
 #define MH_STEPS 10
@@ -14,15 +15,8 @@
 #define SIGMA 0.55
 #define HLINE printf("\n--------------------------------------------------------------------------------\n")
 
-/* Begin constants */
-// const double SIGMA = 0.55;
 const double MIXTURE_WEIGHTS[N_MIXTURE_COMPONENTS] = {0.25,0.25,0.25,0.25};
-//const double MU_TRUE[4] = {-3,0,3,6};
-// const int N_MIXTURE_COMPONENTS = 4; // should be no larger than an unsigned char
-// const int M = 200;
-// const int MH_STEPS = 10;
-
-static double* xNew;
+static double* xNew; //an array used for swapping
 
 /* begin function-signatures */
 int test(void);
@@ -33,19 +27,17 @@ _Bool ESS_is_largeEnough(const double * W,const int N_W);
 double pi_updateStep(const double* y,const int N_y, const double* x, const int n);
 void smc_sampler(const double* yObs,const int N_yObs ,const int n_particles , double** particles, double* weights);
 void randParticle(double * x);
-//void resample(double* q_weights, double** particles);
 void resample(double ** particles, double * weights,const int n_particles, const double w0, gsl_rng * r, gsl_ran_discrete_t * wSampler);
 void propagate_particle(double * x,const int n, const double* yObs,const int N_yObs,gsl_rng * r);
 void smc_sampler_for_R( double* yObs, int* N_yObs, int* N_particles, double* X_vec, double* W, double* time);
 void freeParticle_swap(void);
 
-/*
+
 int main(){
   allocateParticle_swap();
   return test();
   freeParticle_swap();
 }
-*/
 
 /* a wrapper function for calling smc_sampler from R */
 void smc_sampler_for_R(
@@ -57,19 +49,16 @@ void smc_sampler_for_R(
   double* t_SMC )
   {
 
-  //allocate memmory for swapping
+  // allocate memmory for swapping
   allocateParticle_swap();
-
-  // double* W;
-  // W = (double*) malloc(sizeof(double)*N);
 
   // Generate an (N_particles x N_MIXTURE_COMPONENTS) array used to
   // internally represent particles
   double** X;
-  X = (double**) malloc(sizeof(double *) * *N_particles);
+  X = (double**) malloc(sizeof(double *) * (*N_particles));
   size_t i = 0;
   for(i=0 ; i < *N_particles ; ++i){
-    X[i] = (double*) malloc(sizeof(double*)*N_MIXTURE_COMPONENTS);
+    X[i] = (double*) malloc(sizeof(double)*N_MIXTURE_COMPONENTS);
   }
 
   //start timer
@@ -86,8 +75,8 @@ void smc_sampler_for_R(
 
   //write to output vector
   size_t j;
-  for( i = 0 ; i < *N_particles ; ++i){
-    for( j = 0 ; i < N_MIXTURE_COMPONENTS ;  ++j){
+  for( i = 0 ; i < (*N_particles) ; ++i){
+    for( j = 0 ; j < N_MIXTURE_COMPONENTS ;  ++j){
       X_vec[N_MIXTURE_COMPONENTS * i + j] = X[i][j];
     }
   }
@@ -127,13 +116,9 @@ void smc_sampler(
   double* weights)
   {
 
-  // /* An auxiliary array for containing the quantile of the weight-vector */
-  // double* q_weights;
-  // q_weights = (double *)malloc(sizeof(double)*n_particles);
-
   time_t t0 = time(NULL);
   time_t t1;
-  size_t i; //size_t j; //summation indices
+  size_t i; //summation indices
 
   gsl_rng * r = gsl_rng_alloc(gsl_rng_mt19937);
   gsl_ran_discrete_t * wSampler;
@@ -226,8 +211,6 @@ void smc_sampler(
     ++n;
   }
   if(VERBOSE) printf("total number of resampling-steps = %i\n",resampleCounter);
-//  printf("DONE!");
-  // free(q_weights);
   gsl_rng_free(r);
   // gsl_ran_discrete_free(wSampler);
 }
@@ -266,7 +249,7 @@ double log_likelihood(const double* y, const int N_y,const double* mu){
   for(i=0; i<N_MIXTURE_COMPONENTS; ++i){
     //INFINITY is a macro defined in math.h
     if( mu[i] > 10.0 || mu[i] < -10.0 ){
-      if(VERBOSE) printf("WOAH!\n");
+      if(VERBOSE) printf("WOAH! particle out of range\n");
       return -INFINITY;
     }
   }
@@ -325,21 +308,21 @@ void resample(
   }
 }
 
-// an auxiliary function for computing pi_n(x_(n-1)) / pi_(n-1)(x_(n-1))
-// \eqn{\propto} p( x_(n-1) | y ) ^ ((2n -1)/M^2). Used when updating weights.
-// @param y Observed data
-// @param x Our proposed value for Mu (a vector of modes)
+/*
+A n auxiliary function for computing pi_n(x_(n-1)) / pi_(n-1)(x_(n-1))
+\eqn{\propto} p( x_(n-1) | y ) ^ ((2n -1)/M^2). Used when updating weights.
+@param y Observed data
+@param x Our proposed value for Mu (a vector of modes)
+*/
 double pi_updateStep(const double* y,const int N_y, const double* x,const int n){
   return exp( ( ((float) 2*n -1)/((float) (M*M)) ) * log_likelihood(y,N_y,x));
 }
 
 void propagate_particle(double * x,const int n, const double* yObs,const int N_yObs,gsl_rng * r){
+
+  //NOTE: xNew MUST have been allocated before calling this method!
+
   size_t i = 0; size_t j;
-  //  double xNew[N_MIXTURE_COMPONENTS]; //requires -std=c99 or later. otherwise uncomment the code below.
-
-  // double* xNew;
-  // xNew = (double *)malloc(sizeof(double) * N_MIXTURE_COMPONENTS);
-
   for(i = 0 ; i < MH_STEPS ; ++i){
 
     // Generate new observation
@@ -347,7 +330,7 @@ void propagate_particle(double * x,const int n, const double* yObs,const int N_y
       xNew[j] = x[j] + gsl_ran_gaussian(r,SIGMA);
     }
 
-
+/*
     // REMOVE WHEN COMPILING FOR SPEED!
     if(VERBOSE){
       // printf("Acceptance! alpha = %0.3f\n",alpha);
@@ -365,14 +348,15 @@ void propagate_particle(double * x,const int n, const double* yObs,const int N_y
       }
       printf("\n");
     }
-
+*/
 
     // double logL_new = log_likelihood(yObs, N_yObs, xNew);
     // double logL_old = log_likelihood(yObs, N_yObs, x);
     double logL_Diff = log_likelihood(yObs, N_yObs, xNew) - log_likelihood(yObs, N_yObs, x);
     double alpha = 1;
     _Bool autoAccept = 1;
-    // Iff true, the sign in the expression for alpha below will be <1.
+
+    // Iff logL_Diff < 0 true, the sign of the argument fo exp() will be <1.
     if(logL_Diff < 0){
       double exponent = (double) n / (double) M;
       exponent *= exponent; // square the exponent
@@ -394,7 +378,7 @@ void propagate_particle(double * x,const int n, const double* yObs,const int N_y
 }
 
 /* A generic function to test during development
-Return 0 if succcessfull*/
+Returns 0 if test succcessfull*/
 int test(void){
 /*
   double x = 1; double y;
@@ -532,6 +516,7 @@ int test(void){
 /*
   int N_yObs = 100;
 
+  //DATA from R, so that the S-method and the .c method can be directly compated
   double yObs[100] = {6.42614409154078,0.260646235868524,6.20077626783781,-3.54124388162526,3.16810352365003,-3.02631343546788,6.22743478871312,6.8131742684717,6.24776924281844,3.65204896173014,6.01102502511306,-2.78204404408537,6.54496067301763,2.86661732139087,6.41368106980899,-2.54549938986914,6.08430821908108,2.65819528014716,-4.10369954335742,-3.70836228135375,3.55973960494948,-3.99408019214758,-3.06751044524848,-0.560058224387682,0.625592793169344,2.58052593365431,0.689049384542289,0.494930560119956,0.390397430673082,2.87213201595585,6.08140477180053,-3.63073724259346,1.76368358083185,0.0978387885170348,6.49576360025151,6.65592881975105,-2.31116539097971,6.69822824187681,0.0197128170022586,-3.6584094557839,6.37219590110012,5.98608504754753,5.76477302651333,-2.49473884182791,3.68861876383596,6.71753596416937,-2.86065603329243,2.36234293889529,-2.13229209410826,-3.1821797074668,3.67640450999392,2.35200323180728,-2.90422204445312,3.85237110998024,5.73406945312462,3.61994874049274,-4.0561902744938,5.66696946993138,5.96245114627653,6.59816990256299,0.231879318383607,2.34472949459441,2.72937582033292,-0.444334698629388,2.22482121394123,3.15359838488669,5.79310254628412,2.95627482456672,0.0754282164405023,-3.27128946837834,-2.77302236660845,7.25710145940199,6.2324724323204,5.9296066592542,5.60999425487975,-0.286465744070193,0.587073138580418,-2.67791031284446,6.98129381109518,3.36137498170339,-3.16490919686681,-3.62156309636938,5.41982668735859,-3.07991914749654,-2.89255426727392,5.61010574600101,-3.10612256078391,3.48991878214866,2.58896632171936,0.703862729104843,4.72001741709978,-0.244802119787893,6.45395925612269,0.253461730596016,2.69213945052578,-2.90338536462303,3.28208239426602,-2.57167632631676,0.920364746339414,0.993277872559861};
 
   int N_X = 5;
