@@ -188,23 +188,44 @@ SMC_sampler <- function(y,N,M=200,c=0.5,mh_steps = 10, mh_sigma =1){
   return(list(X = X, W = W))
 }
 
-generatePlot <- function(N,N_y = 100){
-  y <- sampleMM(N_y)
-  smcData <- SMC_sampler(y,N)
+generatePlot <- function(SMC_Data = NA,N=100,N_y = 100,verbose = FALSE){
+  if(!is.list(SMC_Data)){ #simulate new data
+    y <- sampleMM(N_y)
+    SMC_Data <- SMC_sampler(y,N)
+  } else {
+    N <- dim(SMC_Data$X)[2]
+  }
   Ncolours <- 100
   blue <- 4/6
   yellow <- 1/6
   green <- 2/6
   red <- 1
-  colVec <- rainbow(Ncolours,start = blue,end = green)[cut(smcData$W,breaks = Ncolours,labels=FALSE)]
+  colVec <- rainbow(Ncolours,start = blue,end = green)[cut(SMC_Data$W,breaks = Ncolours,labels=FALSE)]
   par(cex = 0.75 ,fg = "lightgrey", bg="black" ,col = "lightgrey", col.axis = "lightgrey", col.lab = "lightgrey",col.main = "lightgrey",col.sub = "lightgrey")
-  plot(smcData$X[1,],smcData$X[2,],col = colVec, pch=".",ps=50)
-  return(list(y,smcData,colVec))
+  plot(SMC_Data$X[1,],SMC_Data$X[2,],col = colVec, pch=".",ps=50)
+  if(verbose) return(list(y,SMC_Data,colVec))
 }
 
+
+#' An SMC sampler implemented in c
+#' 
+#' @description This method is a wrapper for the .c method smc_sampler_for_R, which in turn
+#' is a wrapper for the method smc_sampler. Both of these methods are specified in the
+#' .c source file "SMC_sampler.c".
+#' @param y a vector of observations (can be generated for testing using \code{sampleMM})
+#' @param N the number of particles iused in the filter
+#' 
+#' @return A list \code{(X,W,runTime)}, where
+#' 
+#' \code{X} contains all particles (particles are stored row-wise)
+#' 
+#' \code{W[i]} corresponds to the weight of \code{X[,i]}
+#' 
+#' \code{runTime} is the time spent in the subroutine "smc_sampler" measured in secconds
+
 SMC_sampler_FAST <- function(y,N){
-  X <- vector(mode = "numeric",length = 4*N)
-  W <- vector(mode = "numeric",length = N)
+  X <- vector(mode = "double",length = 4*N)
+  W <- vector(mode = "double",length = N)
 
   outputRaw <- .C("smc_sampler_for_R",
                     yObs = as.double(y),
@@ -215,7 +236,7 @@ SMC_sampler_FAST <- function(y,N){
                     t_SMC = as.double(0))
 
   X <- outputRaw$X_vec
-  dim(X) <- c(N,4)
+  dim(X) <- c(4,N)
   W <- outputRaw$W
   runTime <- outputRaw$t_SMC
   
