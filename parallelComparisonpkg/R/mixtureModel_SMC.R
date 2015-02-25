@@ -201,3 +201,23 @@ generatePlot <- function(N,N_y = 100){
   plot(smcData$X[1,],smcData$X[2,],col = colVec, pch=".",ps=50)
   return(list(y,smcData,colVec))
 }
+
+SMC_sampler_FAST <- function(y,N){
+  X <- vector(mode = "numeric",length = 4*N)
+  W <- vector(mode = "numeric",length = N)
+
+  outputRaw <- .C("smc_sampler_for_R",
+                    yObs = as.double(y),
+                    N_yObs = as.integer(length(y)),
+                    N_particles = as.integer(N),
+                    X_vec = as.double(X),
+                    W = as.double(W),
+                    t_SMC = as.double(0))
+
+  X <- outputRaw$X_vec
+  dim(X) <- c(N,4)
+  W <- outputRaw$W
+  runTime <- outputRaw$t_SMC
+  
+  return( list(X = X , W = W, runTime = runTime) )
+}

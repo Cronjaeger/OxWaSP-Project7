@@ -4,5 +4,6 @@ export(simulateForwards)
 export(testSq)
 export(sampleMM)
 export(SMC_sampler)
+export(SMC_sampler_FAST)
 
 useDynLib(parallelComparisonpkg, .registration = TRUE)
