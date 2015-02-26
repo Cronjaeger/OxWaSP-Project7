@@ -1,0 +1,83 @@
+\documentclass{article}
+
+\usepackage{amsmath, amsthm, amssymb}
+\usepackage[round]{natbib}
+
+% The line below tells R to use knitr on this.
+% \VignetteEngine{knitr::knitr}
+
+\title{Algorithms for population-based samplers}
+\author{Lawrence Middleton \and Simon Lyddon \and Mathias C. Cronj\"ager}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This vingnette gives a brief overview of the algoirithms implemented in the package {\ttfamily \$PACKAGENAME}. This covers a brief descriprion of how the algoritm works, a test-case, as well as a brief overview of how some of the functions provided by the package can be used together.
+\end{abstract}
+
+\section{Test Case -- A multimodal Mixture}
+Multimodal distributions of the form
+\begin{equation} \label{eq:MM}
+f(x) \sim \sum_{i=1}^N \omega_i \mathcal{N}(x ; \mu_i , \sigma_i)
+\end{equation}
+are a simple class of probability-distributions for which a lot of basic MCMC algoritms fail. Any algorithm relying on local optimization will tend to converge erroneously on a single mode. Since these distributions are still rather easy to work with, they are commonly used as test-cases for methods that are designed to capture global information (if calibrated correctly), such as multimodality. For the samplers implemented and benchmarked, $N = 4$ has been chosen and $\omega_i = \frac{1}{4}$ , $\sigma_i = 0.55$ is fixed. The observarions upon which we attempt to infer the modes are sampled from $\mu = (-3,0,3,6)$.
+
+The function \texttt{sampleMM}\footnote{defined in \texttt{mixtureModel\_{}SMC.R}} returns samples from the distribution given by (\ref{eq:MM}).
+<<sampleY>>=
+sampleMM(10)
+
+y <- sampleMM(2^15)
+hist(y,breaks = 100,freq = F,
+     col="grey",border="grey",bty="n")
+rug(y[1:100])
+@
+\section{Sequential Importance Sampling -- Generalized Sequential monte carlo samplers}
+The classical use-case for Sequential Monte Carlo samplers is to sample from the marginal distribution(s) of a stochastic process, by propagaring a set of wheighted particles forwards in time according to some transition-kernel and reweighing/resampling particles based on their importance-weights. Such a case is for instance given by the stochastic volatility modell outlined in \cite[section 4.2]{Lee2010}.
+
+As outlined in \cite[section 3.3]{Lee2010} and \cite{DelMoral2006}, we can however use Sequential Monte Carlo methods in a clever way to sample from a wide variety of distributions that do not fit the above mold. This more general approach often referred to as Sequential Importance Sampling involves sampling from some measure of interest $\pi$ by constructing a sequence of measures that $(\pi^{(n)})_{n = 1 \ldots N}$ such that $\pi^{(N)} = \pi$. For the SMC-approach to work $\pi^{(1)}$ should be easy to sample from and need to be able to transform a sample from $\pi^i$ into a sample from $\pi^{(i+1)}$ for $i = 1<N$, as well as a mechanism for updating weights of samples.
+
+An example where this approach might be fruitfull would be the sampleing from a highly localized (potentially multimodal) posterior $p(\theta | y_{1:M} )$ of some non-localised prior by lettting $\pi^{(i)} := p(\theta | y_{1:n_i} )$ for some sequence $0<n_1<\ldots<n_N =M$ chosen so that two consecutive distributions are always ``sufficiently similar".
+
+Another example is \emph{simulated anealling}, whereby we consider smoothed versions of some target-density $\pi$ is given by $\pi^{(i)} \propto \pi^{\beta_i}$ for some sequence $0 \leq \beta_1 < \ldots < \beta_N = 1$. The algoritms implemented in {\ttfamily mixtureModel\_{}SMC.R} and {\ttfamily SMC\_{}sampler.c} such an approach to the test case of inferring the modes of a mixture of 4 otherwise equal normal distributions. In the algoritms, $\beta_n := \left ( {\frac{n}{M}} \right) ^2$ has been chosen for $1=\ldots =M$. Particles are propagated by taking 10 Metropolis hastings steps with a gaussian proposal, and weights are updated as follows. A perticle $x$ in generation $n$, is assigned the unnormalzed weight
+$$W(x_n) := w(\tilde{x}_n) * \frac{\pi^{(n)} (\tilde{x}_n)}{\pi^{(n-1)} (\tilde{x}_n)} $$
+where $\tilde{x}_n$ denotes the ancestor in generation $n-1$ of the particle $x_n$ (after resampling has ocurred).
+
+The sheme outlined above has been implemented for infering the modes of
+a distribution as in (\ref{eq:MM}). The scheme has been implemented in both R and C.
+Both implementations are made available to the end-user via R functions. If we were willing to wait for a while (the R code is a bit slow), we could compare the speed of the rwo implementations as follows:
+<<FastVsSlow,eval=FALSE>>=
+y <- sampleMM(100)
+N_particles <- 1000
+out_slow <- SMC_sampler(y,N_particles)
+out_FAST <- SMC_sampler_FAST(y,N_particles)
+print(paste("t_slow =",out_slow$runTime,"sec"))
+print(paste("t_fast =",out_FAST$runTime,"sec"))
+@
+
+Since \texttt{SMC\_{}sampler\_{}FAST} is just a wrapper for c code, a brief glance at the source-code in {\ttfamily/src/SMC\_{}samplder.c} is worth it for seeing what goes on under the hood.
+
+We can get an overview of how the samples generated are distributed using the following modified plotting command which accepts the output of any of the samplers above as valid input.
+<<scatterplot,cache=TRUE,warning=FALSE>>=
+y <- sampleMM(100)
+N_particles <- 1000
+out_FAST <- SMC_sampler_FAST(y,N_particles)
+generatePlot(SMC_Data = out_FAST)
+@
+As the above plot makes evident, the SMC sampler samples from all modes of the posterior $p(\mu | y)$. Since the weights and variances are presumed to be equal, the posterior distribution on modes is exchangeable i.e. invariant w.r.t permutation.
+
+Further benchmarking functions are availiable.
+<<benchmarking,cache=TRUE>>=
+#prints time in secconds for each N in N_seq. stores runtimes as a vector
+times <- benchmark_SMC(N_seq = 20*1:5)
+times
+
+#runs the above and prints a log-log-plot of runtime vs number of particles
+generateRuntimePlot(N_seq = 20*1:5)
+@
+\nocite{*}
+\bibliographystyle{plainnat}
+\bibliography{bibliography_mathias.bib}
+
+\end{document}

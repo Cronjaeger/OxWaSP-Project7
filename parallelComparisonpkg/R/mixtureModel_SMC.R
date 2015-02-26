@@ -227,7 +227,8 @@ generatePlot <- function(SMC_Data = NA,N=100,N_y = 100,verbose = FALSE){
        col = colVec,  
        xlab = "",
        ylab = "",
-       main = paste("μ[1] against μ[2] \t",N,"particles\truntime =",SMC_Data$runTime,"sec"))
+       #main = paste("μ[1] against μ[2] \t",N,"particles\truntime =",SMC_Data$runTime,"sec"),
+       main = paste("mu[1] against mu[2] \t",N,"particles\truntime =",SMC_Data$runTime,"sec"))
 
   if(verbose) return(list(y,SMC_Data,colVec))
 }
