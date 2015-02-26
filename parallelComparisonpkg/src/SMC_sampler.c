@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <omp.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_sf_erf.h>
 #include <gsl/gsl_rng.h>
