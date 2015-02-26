@@ -11,3 +11,5 @@ Author: Mathias C. Cronjager, Simon Lyddon and Lawrence Middleton
 Maintainer: Mathias C. Cronjager <kitkat2.0@gmail.com>
 License: MIT License
 LazyData: true
+Suggests: knitr
+VignetteBuilder: knitr

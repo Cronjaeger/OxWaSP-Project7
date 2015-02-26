@@ -148,8 +148,7 @@ propagate_particle <- function(x, y, n, M = 200, steps = 10, sigma_MH = 1){
 #'  pp. 411–436, Jun. 2006.
 SMC_sampler <- function(y,N,M=200,c=0.5,mh_steps = 10, mh_sigma =1){
 
-#   y <- as.array(y)
-  
+  t0 <- Sys.time()
   #Initialize
   X <- matrix(data = runif(n = 4*N,min = -10,max = 10) )
 #               nrow = 4,
@@ -185,9 +184,22 @@ SMC_sampler <- function(y,N,M=200,c=0.5,mh_steps = 10, mh_sigma =1){
     #increment counter
     n <- n+1
   }
-  return(list(X = X, W = W))
+  t1 <- Sys.time()
+  
+  return(list(X = X, W = W, runTime = round(as.numeric(t1 - t0))))
 }
 
+
+#' A function that autometes the generation of coloured scatterplots of particles form an
+#' SMC sampler
+#' @param SMC_Data a list of output paremeters, containing an element \code{W} storing
+#' the weights of particles, as well as en element \code{X} storing particles column-wise.
+#' 
+#' If this variable is not provided, a new SMC_sampler will be run and output.
+#' @param N if \code{SMC_Data} is not provided, a particle filter based on simulated data
+#' is run with \code{N} particles.
+#' @param N_y if \code{SMC_Data} is not provided, \code{N_y} observations are generated using
+#' sampleMM. Based on these observations, a particle filter is run.
 generatePlot <- function(SMC_Data = NA,N=100,N_y = 100,verbose = FALSE){
   if(!is.list(SMC_Data)){ #simulate new data
     y <- sampleMM(N_y)
@@ -195,14 +207,28 @@ generatePlot <- function(SMC_Data = NA,N=100,N_y = 100,verbose = FALSE){
   } else {
     N <- dim(SMC_Data$X)[2]
   }
-  Ncolours <- 100
-  blue <- 4/6
-  yellow <- 1/6
-  green <- 2/6
-  red <- 1
-  colVec <- rainbow(Ncolours,start = blue,end = green)[cut(SMC_Data$W,breaks = Ncolours,labels=FALSE)]
-  par(cex = 0.75 ,fg = "lightgrey", bg="black" ,col = "lightgrey", col.axis = "lightgrey", col.lab = "lightgrey",col.main = "lightgrey",col.sub = "lightgrey")
-  plot(SMC_Data$X[1,],SMC_Data$X[2,],col = colVec, pch=".",ps=50)
+
+  myPalette = topo.colors(Ncolours)
+  colVec <- myPalette[cut(SMC_Data$W,breaks = Ncolours,labels=FALSE)]
+
+  par(cex = 0.75,
+      bty = "n",
+      pch=".",
+      fg = "lightgrey", 
+      bg="black" ,
+      col = "lightgrey", 
+      col.axis = "lightgrey", 
+      col.lab = "lightgrey",
+      col.main = "lightgrey",
+      col.sub = "lightgrey")
+
+  plot(x = SMC_Data$X[1,], 
+       y = SMC_Data$X[2,],
+       col = colVec,  
+       xlab = "",
+       ylab = "",
+       main = paste("μ[1] against μ[2] \t",N,"particles\truntime =",SMC_Data$runTime,"sec"))
+
   if(verbose) return(list(y,SMC_Data,colVec))
 }
 
@@ -222,7 +248,6 @@ generatePlot <- function(SMC_Data = NA,N=100,N_y = 100,verbose = FALSE){
 #' \code{W[i]} corresponds to the weight of \code{X[,i]}
 #' 
 #' \code{runTime} is the time spent in the subroutine "smc_sampler" measured in secconds
-
 SMC_sampler_FAST <- function(y,N){
   X <- vector(mode = "double",length = 4*N)
   W <- vector(mode = "double",length = N)

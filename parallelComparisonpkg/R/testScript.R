@@ -1,17 +1,28 @@
-## This is a test script for checking if we can figure out how to integrate .c code into an R-package
+## a series of tests for benchmarking
 
-
-#' A wrapper function for calling square.c and parsing output.
-squareVector <- function(X){
-  # Squares a vector...
-  n = length(X)
-  returnVector = vector(mode = "numeric",length = n)
-  returnVector = .C("square",N = as.integer(n), x = as.double(X))$x
-  return(returnVector)
+benchmark_SMC <- function(N_seq = 2^(4:15),y = sampleMM(100),returnEverything = FALSE,verbose = TRUE,checkpointing=FALSE){
+  require(parallelComparisonpkg)
+  outList <- list()
+  for(N in N_seq){
+    out <- SMC_sampler_FAST(y,N)
+    outList <- c(outList,list(out))
+    outStr <- paste("N =",N,"t =",out$runTime)
+    print(outStr)
+    if(checkpointing) save(outList,file="benchmarkCheckpoint.RData")
+  }
+  if(returnEverything) return(outList) #return the whole shebang
+  else return(sapply(outList,function(x) x$runTime)) #return only the runtimes
 }
 
-# Test if square.c has been compiled and is callable.
-testSq <- function(n=10){
-  vec = squareVector(1:n)
-  print(tail(vec))
+generateRuntimePlot <- function(N_seq = 2^(4:13)){
+  outTimes <- benchmark_SMC(N_seq,verbose = FALSE)
+  plot(x = N_seq, 
+       y = outTimes,
+       type = "p",
+       #bty="n",
+       pch = 3,
+       log="xy",
+       xlab = "",
+       ylab = "",
+       main = "runtime (sec) Vs #particles (log-log)")
 }
