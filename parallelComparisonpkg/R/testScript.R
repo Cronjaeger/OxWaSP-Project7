@@ -13,11 +13,16 @@
 #' after each run.
 #' 
 #' "N = N_seq[i], t = SMC_sampler_FAST(y,N[i])$runTime"
-benchmark_SMC <- function(N_seq = 2^(4:15),y = sampleMM(100),returnEverything = FALSE,verbose = TRUE,checkpointing=FALSE){
+benchmark_SMC <- function(N_seq = 2^(1:15),y = sampleMM(100),returnEverything = FALSE,verbose = TRUE,checkpointing=FALSE,useR=FALSE){
   require(parallelComparisonpkg)
   outList <- list()
+  if(useR){
+    sampler <- function(y,N) SMC_sampler(y,N)
+  } else {
+    sampler <- function(y,N) SMC_sampler_FAST(y,N)
+  }
   for(N in N_seq){
-    out <- SMC_sampler_FAST(y,N)
+    out <- sampler(y,N)
     outList <- c(outList,list(out))
     outStr <- paste("N =",N,"t =",out$runTime)
     if(verbose) print(outStr)
